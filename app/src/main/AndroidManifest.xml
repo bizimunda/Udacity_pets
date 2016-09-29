@@ -20,6 +20,10 @@
             android:name=".EditorActivity"
             android:label="@string/title_activity_editor" >
         </activity>
+        <provider
+            android:name=".data.PetProvider"
+            android:authorities="com.example.android.pets"
+            android:exported="false" />
     </application>
 
 </manifest>
