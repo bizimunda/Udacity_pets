@@ -1,24 +1,36 @@
 package com.example.android.udacity_pets;
 
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.os.Bundle;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.CursorLoader;
+import android.support.v4.content.Loader;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.TextView;
+import android.widget.AdapterView;
+import android.widget.ListView;
+import android.widget.Toast;
 
+import com.example.android.udacity_pets.adapter.PetCursorAdapter;
 import com.example.android.udacity_pets.data.PetContract;
 import com.example.android.udacity_pets.data.PetDbHelper;
 import com.shamanland.fab.FloatingActionButton;
 
 
-public class CatalogActivity extends AppCompatActivity {
+public class CatalogActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Cursor> {
+
 
     private PetDbHelper mDbHelper;
+    private ListView petListView;
+    private PetCursorAdapter adapter;
+    private static final int PET_LOADER=0;
 
 
     @Override
@@ -35,70 +47,33 @@ public class CatalogActivity extends AppCompatActivity {
                 startActivity(intent);
             }
         });
-        mDbHelper = new PetDbHelper(this);
 
+        petListView= (ListView) findViewById(R.id.list);
 
-    }
+        View emptyView = findViewById(R.id.empty_view);
+        petListView.setEmptyView(emptyView);
 
-    private void displayDatabaseInfo() {
+        adapter= new PetCursorAdapter(this,null);
+        petListView.setAdapter(adapter);
 
+        petListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Intent intent= new Intent(CatalogActivity.this, EditorActivity.class);
 
-
-        String[] projection = {
-                PetContract.PetEntry._ID,
-                PetContract.PetEntry.COLUMN_PET_NAME,
-                PetContract.PetEntry.COLUMN_PET_BREED,
-                PetContract.PetEntry.COLUMN_PET_GENDER,
-                PetContract.PetEntry.COLUMN_PET_WEIGHT,
-        };
-
-        /*Cursor cursor = db.query(
-                PetContract.PetEntry.TABLE_NAME,
-                projection,
-                null,
-                null,
-                null,
-                null,
-                null);
-                */
-        Cursor cursor=getContentResolver().query( PetContract.PetEntry.CONTENT_URI, projection, null, null, null);
-        TextView displayView = (TextView) findViewById(R.id.text_view_pet);
-
-        try {
-
-            displayView.setText("Number of row in pets database table: " + cursor.getCount() + " pets. \n\n");
-            displayView.append(PetContract.PetEntry._ID + " - " +
-                    PetContract.PetEntry.COLUMN_PET_NAME + " - " +
-                    PetContract.PetEntry.COLUMN_PET_BREED + " - " +
-                    PetContract.PetEntry.COLUMN_PET_GENDER + " - " +
-                    PetContract.PetEntry.COLUMN_PET_WEIGHT + " \n ");
-
-            int idColumnIndex=cursor.getColumnIndex(PetContract.PetEntry._ID);
-            int nameColumnIndex=cursor.getColumnIndex(PetContract.PetEntry.COLUMN_PET_NAME);
-            int breedColumnIndex=cursor.getColumnIndex(PetContract.PetEntry.COLUMN_PET_BREED);
-            int genderColumnIndex=cursor.getColumnIndex(PetContract.PetEntry.COLUMN_PET_GENDER);
-            int weightColumnIndex=cursor.getColumnIndex(PetContract.PetEntry.COLUMN_PET_WEIGHT);
-
-            while (cursor.moveToNext()){
-                int currentID=cursor.getInt(idColumnIndex);
-                String currentName=cursor.getString(nameColumnIndex);
-                String currentBreed=cursor.getString(breedColumnIndex);
-                int currentGender=cursor.getInt(genderColumnIndex);
-                int currentWeight=cursor.getInt(weightColumnIndex);
-
-                displayView.append(("\n" + currentID + " -    " +
-                       currentName + " - " +
-                       currentBreed + " - " +
-                       currentGender + " - " +
-                       currentWeight));
+                Uri currentUri= ContentUris.withAppendedId(PetContract.PetEntry.CONTENT_URI, id);
+                intent.setData(currentUri);
+                startActivity(intent);
             }
+        });
+
+        getSupportLoaderManager().initLoader(PET_LOADER, null, this);
 
 
 
-        } finally {
-            cursor.close();
-        }
     }
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -115,32 +90,69 @@ public class CatalogActivity extends AppCompatActivity {
             // Respond to a click on the "Insert dummy data" menu option
             case R.id.action_insert_dummy_data:
                 insertPet();
-                displayDatabaseInfo();
                 return true;
             // Respond to a click on the "Delete all entries" menu option
             case R.id.action_delete_all_entries:
-                // Do nothing for now
+                deleteAllPets();
                 return true;
+
         }
         return super.onOptionsItemSelected(item);
     }
 
+    private void deleteAllPets() {
+        int rowsDeleted = getContentResolver().delete(PetContract.PetEntry.CONTENT_URI, null, null);
+        Log.v("CatalogActivity", rowsDeleted + " rows deleted from pet database");
+
+    }
+
     private void insertPet() {
 
-        SQLiteDatabase db = mDbHelper.getWritableDatabase();
-
         ContentValues values = new ContentValues();
-        values.put(PetContract.PetEntry.COLUMN_PET_NAME, "Toto");
-        values.put(PetContract.PetEntry.COLUMN_PET_BREED, "Terrier");
+        values.put(PetContract.PetEntry.COLUMN_PET_NAME, "Nilo");
+        values.put(PetContract.PetEntry.COLUMN_PET_BREED, "Mons");
         values.put(PetContract.PetEntry.COLUMN_PET_GENDER, PetContract.PetEntry.GENDER_MALE);
         values.put(PetContract.PetEntry.COLUMN_PET_WEIGHT, 7);
 
-        long newRowId = db.insert(PetContract.PetEntry.TABLE_NAME, null, values);
+        Uri newUri=getContentResolver().insert(PetContract.PetEntry.CONTENT_URI, values);
+
+        if (newUri == null) {
+            // If the new content URI is null, then there was an error with insertion.
+            Toast.makeText(this, getString(R.string.editor_insert_pet_failed),
+                    Toast.LENGTH_SHORT).show();
+        } else {
+            // Otherwise, the insertion was successful and we can display a toast.
+            Toast.makeText(this, getString(R.string.editor_insert_pet_successful),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+
+    @Override
+    public Loader<Cursor> onCreateLoader(int id, Bundle args) {
+        String[] projection={
+                PetContract.PetEntry._ID,
+                PetContract.PetEntry.COLUMN_PET_NAME,
+                PetContract.PetEntry.COLUMN_PET_BREED
+        };
+         return new CursorLoader(this,
+                 PetContract.PetEntry.CONTENT_URI,
+                 projection,
+                 null,
+                 null,
+                 null);
+
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        displayDatabaseInfo();
+    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+        adapter.swapCursor(data);
+
+    }
+
+    @Override
+    public void onLoaderReset(Loader<Cursor> loader) {
+        adapter.swapCursor(null);
     }
 }
